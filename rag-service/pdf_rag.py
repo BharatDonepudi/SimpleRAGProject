@@ -38,6 +38,9 @@ class RAGConfig:
     collection_name: str = "simple-rag"
     chunk_size: int = 1200
     chunk_overlap: int = 300
+    # gemma4 "thinks" by default. The reasoning is discarded, makes answers about 4x
+    # slower, and can use up the token budget so the answer comes back empty.
+    reasoning: bool = False
     question: str = "What are the main points that I should refer to first"
 
 
@@ -78,7 +81,7 @@ class PDFRAGApp:
         return vector_db
 
     def build_chain(self, vector_db):
-        llm = ChatOllama(model=self.config.model)
+        llm = ChatOllama(model=self.config.model, reasoning=self.config.reasoning)
         retriever = MultiQueryRetriever.from_llm(
             vector_db.as_retriever(),
             llm,

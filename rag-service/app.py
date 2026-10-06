@@ -87,6 +87,10 @@ def ask(body: AskRequest, request: Request) -> AskResponse:
     except Exception:
         logger.exception("chain failed")
         raise HTTPException(status_code=500, detail="answer generation failed")
+    if not answer.strip():
+        # The model can stop without writing an answer; don't report that as success.
+        logger.warning("chain returned an empty answer")
+        raise HTTPException(status_code=500, detail="answer generation failed")
     return AskResponse(answer=answer)
 
 

@@ -78,6 +78,17 @@ class PDFRAGTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             app.answer("what?")
 
+    def test_build_chain_turns_off_model_reasoning_by_default(self):
+        app = pdf_rag.PDFRAGApp(pdf_rag.RAGConfig())
+
+        with (
+            patch.object(pdf_rag, "ChatOllama") as chat_ollama,
+            patch.object(pdf_rag, "MultiQueryRetriever"),
+        ):
+            app.build_chain(MagicMock())
+
+        chat_ollama.assert_called_once_with(model="gemma4", reasoning=False)
+
     def test_load_documents_raises_file_not_found_for_missing_pdf(self):
         app = pdf_rag.PDFRAGApp(pdf_rag.RAGConfig(doc_path="/nonexistent/missing.pdf"))
 

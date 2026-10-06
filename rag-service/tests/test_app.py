@@ -138,6 +138,16 @@ class AppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.json(), {"detail": "answer generation failed"})
 
+    def test_empty_answer_returns_500(self):
+        rag = make_fake_rag(answer="  \n")
+
+        with patch.object(app_module, "PDFRAGApp", return_value=rag), patch.object(app_module, "logger"):
+            with started_client() as client:
+                response = client.post("/ask", json={"question": "anything"})
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {"detail": "answer generation failed"})
+
     def test_ask_rejects_missing_question_with_422(self):
         rag = make_fake_rag()
 

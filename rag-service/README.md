@@ -47,7 +47,7 @@ Endpoints:
 
 | Method | Path | Notes |
 |---|---|---|
-| `POST` | `/ask` | Body `{"question": "..."}`. Returns `{"answer": "..."}`. `503` while the index loads, `500` if the chain fails. |
+| `POST` | `/ask` | Body `{"question": "..."}`. Returns `{"answer": "..."}`. `503` while the index loads, `500` if the chain fails or the model returns a blank answer. |
 | `GET` | `/health` | `{"status": "loading" \| "ok" \| "error", "chunks": N}`, plus `"detail"` on error. |
 
 Example:
@@ -88,6 +88,8 @@ Environment variables (defaults in `RAGConfig` in `pdf_rag.py`):
 | `RAG_DOC_PATH` | `./data/HOA.pdf` | PDF to index. Relative paths resolve from the working directory. |
 | `RAG_MODEL` | `gemma4` | Ollama chat model used for query rewriting and answers. |
 | `RAG_EMBED_MODEL` | `nomic-embed-text` | Ollama embedding model used for the vector store. |
+
+Model reasoning ("thinking") is off: `RAGConfig.reasoning` defaults to `False`. With it on, `gemma4` answers about 4x slower and sometimes returns an empty answer.
 
 Example:
 
