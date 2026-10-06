@@ -1,10 +1,13 @@
 """
-Simple PDF RAG script.
+Simple PDF RAG pipeline.
 
 Run `pip install -r requirements.txt` to install dependencies.
+Run `python pdf_rag.py` for the one-shot CLI, or start the HTTP service with
+`../.venv/bin/uvicorn app:app --port 8000` from this folder.
 """
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import ollama
@@ -12,20 +15,32 @@ from langchain_classic.retrievers import MultiQueryRetriever
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from prompts import query_rewrite_prompt, rag_answer_prompt
+
+
+def _env(name: str, default: str) -> str:
+    """Read an env var at config construction time, falling back to the default."""
+    return os.environ.get(name, default)
+
 
 @dataclass(frozen=True)
 class RAGConfig:
-    doc_path: str = "./data/HOA.pdf"
-    model: str = "gemma4"
-    embedding_model: str = "nomic-embed-text"
+    # Defaults can be overridden with RAG_DOC_PATH, RAG_MODEL and RAG_EMBED_MODEL.
+    doc_path: str = field(default_factory=lambda: _env("RAG_DOC_PATH", "./data/HOA.pdf"))
+    model: str = field(default_factory=lambda: _env("RAG_MODEL", "gemma4"))
+    embedding_model: str = field(
+        default_factory=lambda: _env("RAG_EMBED_MODEL", "nomic-embed-text")
+    )
     collection_name: str = "simple-rag"
     chunk_size: int = 1200
     chunk_overlap: int = 300
+    # gemma4 "thinks" by default. The reasoning is discarded, makes answers about 4x
+    # slower, and can use up the token budget so the answer comes back empty.
+    reasoning: bool = False
     question: str = "What are the main points that I should refer to first"
 
 
@@ -33,11 +48,12 @@ class PDFRAGApp:
     def __init__(self, config: RAGConfig) -> None:
         self.config = config
         self.pdf_file = Path(config.doc_path)
+        self.chain = None
+        self.chunk_count = 0
 
     def load_documents(self):
         if not self.pdf_file.exists():
-            print("upload a pdf file")
-            raise SystemExit(1)
+            raise FileNotFoundError(f"PDF not found: {self.pdf_file}")
 
         loader = PyPDFLoader(str(self.pdf_file))
         documents = loader.load()
@@ -64,46 +80,42 @@ class PDFRAGApp:
         print("done adding vector DB ...")
         return vector_db
 
-    def create_query_prompt(self) -> PromptTemplate:
-        return PromptTemplate(
-            input_variables=["question"],
-            template=""" You are an AI language model assistant. Your task is to generate five
-    different versions of the given user question to retrieve relevant documents from
-    a vector database. By generating multiple perspectives on the user question, your
-    goal is to help the user overcome some of the limitations of the distance-based
-    similarity search. Provide these alternative questions separated by newlines.
-    Original question: {question} """,
-        )
-
-    def create_rag_prompt(self) -> ChatPromptTemplate:
-        template = """Answer the question based ONLY on the following context:
-{context}
-Question: {question}
-"""
-        return ChatPromptTemplate.from_template(template)
-
     def build_chain(self, vector_db):
-        llm = ChatOllama(model=self.config.model)
+        llm = ChatOllama(model=self.config.model, reasoning=self.config.reasoning)
         retriever = MultiQueryRetriever.from_llm(
             vector_db.as_retriever(),
             llm,
-            prompt=self.create_query_prompt(),
+            prompt=query_rewrite_prompt(),
         )
-        prompt = self.create_rag_prompt()
 
         return (
             {"context": retriever, "question": RunnablePassthrough()}
-            | prompt
+            | rag_answer_prompt()
             | llm
             | StrOutputParser()
         )
 
-    def run(self) -> str:
+    def build_index(self) -> None:
+        """Load the PDF, split it, build the vector DB and the chain.
+
+        Results are stored on the instance (`self.chain`, `self.chunk_count`).
+        """
         documents = self.load_documents()
         chunks = self.split_documents(documents)
+        self.chunk_count = len(chunks)
         vector_db = self.build_vector_db(chunks)
-        chain = self.build_chain(vector_db)
-        response = chain.invoke(input=self.config.question)
+        self.chain = self.build_chain(vector_db)
+
+    def answer(self, question: str) -> str:
+        """Answer a question with the index built by `build_index()`."""
+        if self.chain is None:
+            raise RuntimeError("index not built; call build_index() first")
+        return self.chain.invoke(input=question)
+
+    def run(self) -> str:
+        """CLI wrapper: build the index, answer the configured question, print it."""
+        self.build_index()
+        response = self.answer(self.config.question)
         print(response)
         return response
 
