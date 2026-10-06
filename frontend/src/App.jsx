@@ -8,6 +8,11 @@ import {
   saveConversationId,
 } from './storage.js'
 
+// Statuses whose body carries conversationId once the conversation exists
+// (docs/api-contract.md, Contract A). The backend has already saved the user
+// message, so the client keeps the id and uses it for the next send.
+const KEEPS_CONVERSATION_STATUSES = [500, 503, 504]
+
 let keySeq = 0
 const newKey = () => `m${++keySeq}`
 
@@ -76,8 +81,9 @@ export default function App() {
         // The stored conversation no longer exists: the next message starts a new one.
         clearConversationId()
         setConversationId(null)
-      } else if (err.conversationId) {
-        // 503/504: the backend saved the user message and kept the conversation.
+      } else if (KEEPS_CONVERSATION_STATUSES.includes(err.status) && err.conversationId) {
+        // 500/503/504: the backend saved the user message and kept the conversation.
+        // Without a conversationId the stored id is left unchanged.
         rememberConversation(err.conversationId)
       }
       setError(err.message)

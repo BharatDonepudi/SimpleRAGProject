@@ -123,6 +123,59 @@ describe('App', () => {
     expect(sentBody(1)).toEqual({ conversationId: 'conv-503', message: 'retry' })
   })
 
+  it('shows a 500 error bubble, stores the returned conversationId, and uses it for the next send', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        500,
+        { error: 'The document assistant failed to answer.', conversationId: 'conv-500' },
+        'Internal Server Error',
+      ),
+    )
+    render(<App />)
+
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'broken{Enter}')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The document assistant failed to answer.',
+    )
+    expect(screen.getByText('broken')).toHaveClass('user')
+    expect(window.sessionStorage.getItem(CONV_KEY)).toBe('conv-500')
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { conversationId: 'conv-500', answer: 'Recovered.', createdAt: 'x' }),
+    )
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'again{Enter}')
+
+    expect(await screen.findByText('Recovered.')).toHaveClass('assistant')
+    expect(sentBody(1)).toEqual({ conversationId: 'conv-500', message: 'again' })
+  })
+
+  it('a 500 without conversationId leaves the stored id unchanged', async () => {
+    const user = userEvent.setup()
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { conversationId: 'conv-keep', answer: 'Fine.', createdAt: 'x' }),
+    )
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(500, { error: 'Something went wrong.' }, 'Internal Server Error'),
+    )
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, { conversationId: 'conv-keep', answer: 'Back.', createdAt: 'x' }),
+    )
+    render(<App />)
+
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'one{Enter}')
+    expect(await screen.findByText('Fine.')).toBeInTheDocument()
+
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'two{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong.')
+    expect(window.sessionStorage.getItem(CONV_KEY)).toBe('conv-keep')
+
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'three{Enter}')
+    expect(await screen.findByText('Back.')).toBeInTheDocument()
+    expect(sentBody(2)).toEqual({ conversationId: 'conv-keep', message: 'three' })
+  })
+
   it('clears the stored conversationId when a send returns 404', async () => {
     const user = userEvent.setup()
     window.sessionStorage.setItem(CONV_KEY, 'gone')
