@@ -12,17 +12,24 @@ Rule for changes: the main session edits the contract and commits it, then the a
 
 No later commit changes the contract. `acc6607` (the implementation plan) does not touch it, and no commit changes Contract B after `b8b0294`.
 
+**Since `ce192d9`:** checked with `git log -- docs/api-contract.md` at `be3570f` (2026-10-06). The commits `d38b5dc` to `be3570f` (knowledge base, background index build, pinned requirements, reasoning off, smoke test) did not change the contract. `864d09c` changed rag-service to match it (see below), and `2063d33` added a case the contract does not list.
+
 ## Current state after `ce192d9`
 
 - **Contract A `503`, `504`, `500`:** body is `{ "error": "...", "conversationId": "..." }` once the conversation exists.
 - **Contract A `500`:** covers rag-service errors and unexpected backend errors.
 - **Contract B:** unchanged since `b8b0294`.
 
-## Known mismatch with the code
+## Mismatches with the code
 
-Contract B says `/health` reports `"loading"` while the index is built. Under uvicorn, the server does not accept connections until startup finishes, so that state is not visible over HTTP. The contract text is not wrong for the design, but it describes a state clients can't see. Fixing the code or the text is a rag-service and main-session decision. See [run-book known gaps](run-book.md#known-gaps), item 1.
+- **Fixed in `864d09c`:** Contract B says `/health` reports `"loading"` while the index is built. Until `864d09c`, uvicorn did not accept connections until the build finished, so that state was not visible over HTTP. The code was changed, not the contract ([ADR-020](decisions.md#adr-020-build-the-index-in-a-background-thread)).
+- **Open:** Contract B's `500` row says "the chain failed (e.g. Ollama down)". Since `2063d33`, rag-service also returns `500` `{"detail": "answer generation failed"}` for a blank answer ([ADR-022](decisions.md#adr-022-model-reasoning-off-and-a-blank-answer-is-a-500)).
+- **Open:** Contract B's `503` row shows only `{"detail": "index loading"}`. When the index build failed, `/ask` returns `503` with `{"detail": "index unavailable: <reason>"}` (since `d065033`).
+
+Both open items are text gaps only: the backend maps any rag-service `500` to its own `500` and any `503` to `503`. A contract edit is the main session's call. See [run-book known gaps](run-book.md#known-gaps), item 15.
 
 ## Verified against code
 
 - Backend status mapping for `400`, `404`, `405`, `415`, `503` and the `conversationId` field was checked against the running backend on 2026-10-06 (no rag-service running, so `503` came from a connection failure).
-- Contract B `503` detail text (`"index loading"`) and `500` (`"answer generation failed"`) match `rag-service/app.py`.
+- Contract B `503` detail text (`"index loading"`) and `500` (`"answer generation failed"`) match `rag-service/app.py` at `be3570f`.
+- The Contract A shapes for `200`, `400` and `404` and the transcript endpoint are checked live by `scripts/smoke.sh` (`be3570f`); the `503` path was checked by hand in Phase 2.

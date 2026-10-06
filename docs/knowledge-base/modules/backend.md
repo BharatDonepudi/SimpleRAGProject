@@ -86,7 +86,7 @@ Started with `./mvnw spring-boot:run` using an in-memory H2 URL and no rag-servi
 | `GET /api/conversations/nope/messages` | `400` "Invalid value for parameter 'id'." |
 | `GET /api/conversations/{unknown}/messages` | `404` "Conversation not found." |
 
-The `200` answer path was not run, because it needs rag-service and Ollama.
+The `200` answer path was not run in that check, because it needs rag-service and Ollama. It was run in Phase 2: `scripts/smoke.sh` (`be3570f`) gets a `200` answer and the two-message transcript through the live stack, and a manual check confirmed `503` with `conversationId` while rag-service was down, then `200` in the same conversation after a restart.
 
 ## Known limitations
 
@@ -94,8 +94,8 @@ The `200` answer path was not run, because it needs rag-service and Ollama.
 - **H2 console on with no auth.** Fine for local development; not for anything shared.
 - **No CORS config.** Development relies on the Vite proxy ([ADR-017](../decisions.md#adr-017-vite-dev-proxy-instead-of-cors)).
 - **Connect failures are reported as 503, read timeouts as 504.** A rag-service that accepts connections and then hangs gives 504 after 120s.
-- **README omits 500's `conversationId`.** See [run-book known gaps](../run-book.md#known-gaps), item 4.
 - **Single rag-service URL.** No retries and no circuit breaker.
+- **A blank answer string is passed through.** `RagClient` treats a missing or `null` answer as a failure, but not a blank one. rag-service returns 500 for blank answers since `2063d33`, so this does not happen today ([run-book known gaps](../run-book.md#known-gaps), item 19).
 
 ## Related
 

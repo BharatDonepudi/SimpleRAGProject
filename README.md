@@ -57,7 +57,7 @@ npm install                                    # first time only
 npm run dev
 ```
 
-Open http://localhost:5173 and ask a question. Answers from the local model take about 8–25 seconds.
+Open http://localhost:5173 and ask a question. Answers from the local model take about 8–22 seconds.
 
 With the stack running, check it end to end from the repo root:
 
@@ -79,4 +79,4 @@ cd frontend && npm test -- --run
 
 ## Status
 
-Phases 0 and 1 are merged. In Phase 2 the full stack runs, `scripts/smoke.sh` passes, and rag-service going down returns 503 without losing the conversation. The browser check is still to do. See [docs/implementation-plan.md](docs/implementation-plan.md) for the plan and [docs/CHANGELOG.md](docs/CHANGELOG.md) for what changed in each merge.
+Phases 0, 1 and 2 are done: the full stack runs, `scripts/smoke.sh` passes, the browser chat answers questions, and rag-service going down returns 503 without losing the conversation. See [docs/implementation-plan.md](docs/implementation-plan.md) for the plan and [docs/CHANGELOG.md](docs/CHANGELOG.md) for what changed in each merge.

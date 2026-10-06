@@ -6,7 +6,7 @@
 #   RAG_URL=http://localhost:8000 BACKEND_URL=http://localhost:8080 scripts/smoke.sh
 #
 # Needs curl and python3 (used only to read JSON). The chat request goes through the
-# real model, so it can take up to a minute.
+# real model, so it usually takes 10–30 seconds (it waits up to CHAT_TIMEOUT, 180s).
 
 set -euo pipefail
 

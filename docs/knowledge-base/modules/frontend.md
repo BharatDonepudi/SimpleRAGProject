@@ -44,7 +44,8 @@ npm run build              # output in dist/
 ## Checked here (2026-10-06)
 
 - `npm test -- --run`: 2 files, 19 tests passed.
-- The running dev server and the proxy to a live backend were not exercised in this review.
+- The running dev server and the proxy to a live backend were not exercised in this review. They were in Phase 2 by the main session: the Vite proxy forwarded `/api` to the backend, and after `2063d33` six questions asked from the page were all answered (recorded in [implementation-plan.md section 10](../../implementation-plan.md#10-phase-2--integration-integration-tester), uncommitted at the time of writing).
+- Before `2063d33`, one browser question showed an empty assistant bubble: the backend had returned 200 with `"answer": ""`. The fix was in rag-service, not here ([ADR-022](../decisions.md#adr-022-model-reasoning-off-and-a-blank-answer-is-a-500)).
 
 ## Known limitations
 
@@ -52,6 +53,7 @@ npm run build              # output in dist/
 - **No streaming.** The answer appears all at once ([ADR-004](../decisions.md#adr-004-full-answer-and-a-spinner-no-streaming)).
 - **Proxy only in development.** `vite.config.js` proxies `/api`. A production build needs the same origin for `/api` ([ADR-017](../decisions.md#adr-017-vite-dev-proxy-instead-of-cors)). `npm run preview` also needs the backend on `:8080`.
 - **A failed restore keeps the id.** A non-404 error on the first load shows the error text and keeps the stored id, so a later send still uses it.
+- **Renders the answer as is.** A blank `answer` in a 200 would show as an empty bubble. rag-service now prevents that upstream.
 - **Lint script not run here.** `npm run lint` (oxlint) exists; it was not run for this document.
 
 ## Related

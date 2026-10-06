@@ -1,6 +1,6 @@
 # Knowledge base
 
-Start here if you are new to this repo. It explains what the app does, how the parts fit together, how to run them, why they are built this way, and what changed in each phase. It was checked against the code and git history on `feature/chat-rag-app` through commit `7714c62` (2026-10-06).
+Start here if you are new to this repo. It explains what the app does, how the parts fit together, how to run them, why they are built this way, and what changed in each phase. It was checked against the code and git history on `feature/chat-rag-app` through commit `be3570f` (2026-10-06), plus the uncommitted Phase 2 status edits noted in the [CHANGELOG](../CHANGELOG.md#pending-uncommitted-on-2026-10-06).
 
 The app is a browser chat that answers questions about one PDF (`rag-service/data/HOA.pdf`) with a local LLM through Ollama. No hosted LLM API is used.
 
@@ -22,7 +22,7 @@ Reference documents outside this folder:
 |---|---|
 | [docs/api-contract.md](../api-contract.md) | Source of truth for every HTTP boundary. Read it before changing any API. |
 | [docs/CHANGELOG.md](../CHANGELOG.md) | What landed in each phase or merge, with commit SHAs and test totals. |
-| [docs/implementation-plan.md](../implementation-plan.md) | The phased plan, decisions table and status. Its status table is out of date; see the run-book. |
+| [docs/implementation-plan.md](../implementation-plan.md) | The phased plan, decisions table, status and the Phase 2 results. |
 | [docs/agents.md](../agents.md) | How the parallel subagents were set up and launched. |
 | [CLAUDE.md](../../CLAUDE.md) | Working rules for agents and the main session. |
 
@@ -33,6 +33,7 @@ Reference documents outside this folder:
 | `rag-service/` | Python. `pdf_rag.py` (pipeline), `prompts.py`, `app.py` (FastAPI), `tests/`. |
 | `backend/` | Java 21 and Spring Boot. Chat REST API, H2 transcript log, rag-service client. |
 | `frontend/` | React 19 and Vite, plain JavaScript. Chat page. |
+| `scripts/` | `smoke.sh`: full-stack check against a running stack. |
 | `docs/` | Contract, plan, agent guide, changelog and this knowledge base. |
 | `.claude/` | Agent definitions and the agent command allowlist. |
 | `.venv/` | Shared Python virtualenv at the root (gitignored). |
@@ -42,9 +43,11 @@ Reference documents outside this folder:
 ## Current state
 
 - Phase 0 (foundation) and Phase 1 (rag-service, backend, frontend) are merged on `feature/chat-rag-app`.
-- Phase 2 (integration) is under way: the full stack runs and `scripts/smoke.sh` passes (2026-10-06). The browser check is still to do.
-- Tests run without Ollama or the network: rag-service 22, backend 48, frontend 19. All pass at `7714c62`.
-- Known gaps are listed in [run-book.md](run-book.md#known-gaps). The most important one: rag-service does not answer HTTP while its index is building, so `/health` cannot show `"loading"` at startup.
+- Phase 2 (integration) is done (2026-10-06): the full stack runs, `scripts/smoke.sh` passes, and the browser chat works.
+- After Phase 1: rag-service builds its index in a background thread (`864d09c`), its requirements are pinned (`be52f79`), and model reasoning is off with blank answers returned as 500 (`2063d33`). See [decisions.md](decisions.md), ADR-020 to ADR-022.
+- Unit tests run without Ollama or the network: rag-service 25, backend 48, frontend 19. All pass at `be3570f`. The live path is checked by `scripts/smoke.sh` ([run book](run-book.md#start-order)).
+- The Phase 1 worktrees and their branches were deleted on 2026-10-06; restore SHAs are in the [CHANGELOG](../CHANGELOG.md#branches-deleted-on-2026-10-06).
+- Open gaps are listed in [run-book.md](run-book.md#known-gaps). None blocks running the app. The main one: Contract B does not list rag-service's 500 for a blank answer or its 503 `index unavailable` body.
 
 ## Conventions
 

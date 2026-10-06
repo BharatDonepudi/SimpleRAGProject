@@ -11,7 +11,7 @@ Decisions are not revisited here. To change one, write a new ADR that supersedes
 - **Context:** The original `pdf-rag.py` ran as a script that rebuilt the whole Chroma index on every run. The backend is Java and needs to call the RAG code per question.
 - **Decision:** Wrap the RAG pipeline in a FastAPI service that builds the index once at startup and answers `POST /ask`.
 - **Rejected:** A subprocess per request. Slow (re-embeds the PDF each time) and fragile to error handling.
-- **Consequences:** Startup is slow and the index lives in memory, so a restart rebuilds it. Index build and answering share one process. See [run-book known gaps](run-book.md#known-gaps) for the startup-blocking issue.
+- **Consequences:** Startup is slow and the index lives in memory, so a restart rebuilds it. Index build and answering share one process. At first the build blocked the port; [ADR-020](#adr-020-build-the-index-in-a-background-thread) moved it to a background thread.
 - **Landed:** `d065033` (merged in `58c163e`). Plan: [section 2](../implementation-plan.md#2-decisions).
 
 ## ADR-002: H2 file database for the transcript log
@@ -75,7 +75,7 @@ Decisions are not revisited here. To change one, write a new ADR that supersedes
 - **Context:** Phases 1A to 1C run in parallel.
 - **Decision:** Four subagents, each with its own folder and its own git worktree under `.claude/worktrees/`. Each branch is merged into `feature/chat-rag-app` after review.
 - **Rejected:** Separate terminal sessions by hand. An Agent SDK script.
-- **Consequences:** Worktrees do not contain gitignored files, so the venv is referenced by absolute path. Old worktrees and their branches stay until cleaned up (see [run-book known gaps](run-book.md#known-gaps)).
+- **Consequences:** Worktrees do not contain gitignored files, so the venv is referenced by absolute path. Old worktrees and their branches stay until cleaned up. All six were removed on 2026-10-06 after Phase 1 was merged; the deleted branch SHAs are in the [CHANGELOG](../CHANGELOG.md#branches-deleted-on-2026-10-06).
 - **Landed:** `b8b0294`. Setup in [docs/agents.md](../agents.md).
 
 ## ADR-010: Save the user message before the RAG call
@@ -147,7 +147,7 @@ Decisions are not revisited here. To change one, write a new ADR that supersedes
 - **Context:** Agents work in parallel and cannot start the full stack.
 - **Decision:** Each module's tests mock its outside calls. rag-service mocks Ollama and PDF loading. The backend mocks rag-service (`MockRestServiceServer`). The frontend mocks `fetch`. Full-stack checks are a separate Phase 2 step.
 - **Rejected:** Shared integration tests in each module.
-- **Consequences:** Unit suites run in seconds on any machine. The full path through a real model is only checked by the Phase 2 smoke test, which is not yet written.
+- **Consequences:** Unit suites run in seconds on any machine. The full path through a real model is only checked by `scripts/smoke.sh` (added in `be3570f`) against a running stack. The unit suites could not catch the blank-answer problem in [ADR-022](#adr-022-model-reasoning-off-and-a-blank-answer-is-a-500); the browser check did.
 - **Landed:** Rule in [CLAUDE.md](../../CLAUDE.md); tests in `d065033`, `1131c7d`, `3a6e764`.
 
 ## ADR-019: One shared virtualenv at the repo root
@@ -157,3 +157,27 @@ Decisions are not revisited here. To change one, write a new ADR that supersedes
 - **Rejected:** A venv per worktree.
 - **Consequences:** Dependencies must be installed once by the main session. `.claude/settings.json` denies `pip install` for agents.
 - **Landed:** Plan, Phase 0 (`b8b0294`).
+
+## ADR-020: Build the index in a background thread
+
+- **Context:** The FastAPI lifespan awaited the index build (`await run_in_threadpool(rag.build_index)`). uvicorn binds the port only after the lifespan's startup part returns, so `:8000` refused connections for the whole build. `/health` could never report `"loading"`, although Contract B says it does, and the backend saw connection refused (503) instead.
+- **Decision:** The lifespan creates `IndexState`, starts a daemon thread (`index-build`, stored as `app.state.index_thread`) that runs the module function `build_index(state, rag)`, and returns at once. The thread sets `rag` and `chunks` before `status = "ok"`, so a handler that sees `ok` also sees the chain. Daemon, so a shutdown during a long build is not held up. Tests use `started_client()`, which joins the thread.
+- **Rejected:** Not recorded in the commit. The obvious alternatives were to keep the awaited build and change Contract B to drop the `loading` state, or to build lazily on the first `/ask`, which would make the first question slow and could time out.
+- **Consequences:** The port is bound as soon as imports finish. `/health` shows `loading`, then `ok` or `error`, and `/ask` returns 503 `index loading` during the build. The code now matches Contract B. A failed build does not crash the process; it shows up as `status: error` with a `detail`.
+- **Landed:** `864d09c`. Code in `rag-service/app.py`; test `test_startup_does_not_wait_for_index_build` in `rag-service/tests/test_app.py`.
+
+## ADR-021: Pin rag-service dependencies and the OpenTelemetry family
+
+- **Context:** `rag-service/requirements.txt` was unpinned and listed packages the code does not import (`pdfplumber` twice, `unstructured`, `fastembed`, `sentence-transformers`, `elevenlabs` and others). In the shared venv, `fastapi 0.142.2` raised `opentelemetry-api` to 1.45.0 while `opentelemetry-sdk` stayed at 1.41.0. The SDK pins the API exactly, so `import chromadb` failed with `cannot import name '_ExtendedAttributes'`, and rag-service started with `status: error`.
+- **Decision:** List only the direct dependencies the code uses, plus `pypdf` and `chromadb`, which LangChain loads lazily. Pin each with `==` to the versions verified together on Python 3.13. Pin `opentelemetry-api`, `-sdk`, `-proto` and the two OTLP exporter packages to 1.45.0, with a comment explaining why.
+- **Rejected:** Not recorded in the commit. The status quo (open versions, fix the venv by hand when it breaks) is what caused the `chromadb` failure.
+- **Consequences:** A fresh `pip install -r requirements.txt` reproduces a working set (the commit reports a clean `pip check`, 23 tests passing and a live build with 133 chunks). Upgrades are explicit edits. The shared `.venv` was fixed separately with pip by the main session; it still has the removed packages installed, which is harmless but means it is not identical to a fresh install.
+- **Landed:** `be52f79`. The venv fix itself is not a commit (see the [CHANGELOG](../CHANGELOG.md#phase-2-integration-2026-10-06-2063d33-be3570f)).
+
+## ADR-022: Model reasoning off, and a blank answer is a 500
+
+- **Context:** `gemma4` "thinks" by default. The hidden reasoning used 470–807 tokens for a ~40-token answer, so answers took 40–84 seconds. Sometimes it used up the token budget (`done_reason=length`) and the answer text was empty. `/ask` then returned 200 with `"answer": ""`, and the page showed a blank bubble. Found in the Phase 2 browser check.
+- **Decision:** Add `RAGConfig.reasoning` (default `False`) and pass it to `ChatOllama` in `build_chain`. In `/ask`, a blank or whitespace-only answer is logged (`chain returned an empty answer`) and returned as `500` `{"detail": "answer generation failed"}`, the same body as a chain failure.
+- **Rejected:** Not recorded in the commit. The code comment gives the reason against keeping reasoning on: the reasoning is discarded, makes answers about 4x slower, and can use up the token budget. Returning a blank 200 was the bug being fixed.
+- **Consequences:** Answers took 8–22 seconds in the Phase 2 runs. A blank answer reaches the browser as the backend's `500` with `conversationId` ("could not answer"), through [ADR-012](#adr-012-rag-service-errors-map-to-500-for-the-browser), so the user can retry in the same conversation. Contract B's `500` row still says only "the chain failed"; see [run-book known gaps](run-book.md#known-gaps). A different model may need `reasoning` set differently.
+- **Landed:** `2063d33`. Tests `test_empty_answer_returns_500` and `test_build_chain_turns_off_model_reasoning_by_default`.

@@ -14,7 +14,7 @@ React (Vite, :5173) ──/api──▶ Spring Boot (:8080) ──HTTP──▶ 
 |---|---|---|---|---|
 | Vite dev server | 5173 | React 19, Vite 8 (plain JavaScript) | `frontend/` | Serves the chat page. Proxies `/api` to the backend, so the browser never needs CORS. |
 | Backend | 8080 | Spring Boot 4.1.1, Java 21, Maven wrapper | `backend/` | Public REST API (`/api/chat`, `/api/conversations/{id}/messages`). Saves the transcript and calls rag-service. |
-| rag-service | 8000 | FastAPI on LangChain, Python (shared `.venv`) | `rag-service/` | Builds the PDF index once at startup and answers questions. Only the backend calls it. |
+| rag-service | 8000 | FastAPI on LangChain, Python (shared `.venv`) | `rag-service/` | Builds the PDF index once at startup, in a background thread, and answers questions. Only the backend calls it. |
 | Ollama | 11434 | Local model server (not in this repo) | n/a | Serves the chat model `gemma4` and the embedding model `nomic-embed-text`. |
 
 The browser talks only to the Vite dev server (or whatever serves `/api` in production). The backend is the only caller of rag-service. Ollama is called only by rag-service.
@@ -27,7 +27,7 @@ The browser talks only to the Vite dev server (or whatever serves `/api` in prod
 | Backend → rag-service | JSON over HTTP, `POST /ask` and `GET /health` | [Contract B](../api-contract.md#contract-b--backend--rag-service-fastapi-port-8000) |
 | rag-service → Ollama | Ollama client (`ollama`, `langchain-ollama`) | Not in the contract; configured by `RAG_MODEL` and `RAG_EMBED_MODEL` |
 
-Timeouts follow the call chain. Ollama answers take 10 to 60 seconds on a local model, so the backend's read timeout to rag-service is 120 seconds (`rag.service.read-timeout`). The connect timeout is fixed at 5 seconds. See [run-book](run-book.md#common-failures) for what each timeout looks like to the user.
+Timeouts follow the call chain. The contract plans for 10 to 60 seconds per answer on a local model; with model reasoning off, the Phase 2 runs took 8 to 22 seconds. The backend's read timeout to rag-service is 120 seconds (`rag.service.read-timeout`). The connect timeout is fixed at 5 seconds. See [run-book](run-book.md#common-failures) for what each timeout looks like to the user.
 
 ## Data flow for one question
 
@@ -39,12 +39,19 @@ Timeouts follow the call chain. Ollama answers take 10 to 60 seconds on a local 
    - `MultiQueryRetriever` asks `gemma4` to rewrite the question into five variants.
    - Each variant is embedded with `nomic-embed-text` and searched in the in-memory Chroma store (chunk size 1200, overlap 300).
    - The retrieved chunks, the question and the guardrail prompt in `prompts.py` go to `gemma4`. `StrOutputParser` returns the text.
-6. rag-service returns `{ "answer": ... }`. The backend saves it as an `assistant` message and returns `{ conversationId, answer, createdAt }`.
+   - Both `gemma4` calls go through one `ChatOllama` with `reasoning=False` ([ADR-022](decisions.md#adr-022-model-reasoning-off-and-a-blank-answer-is-a-500)).
+6. rag-service returns `{ "answer": ... }`. A blank answer is returned as `500` instead. The backend saves it as an `assistant` message and returns `{ conversationId, answer, createdAt }`.
 7. The frontend stores `conversationId` in `sessionStorage` and shows the answer.
 
 If anything fails, the backend maps it to 503, 504 or 500 and includes `conversationId` in the body (see [ADR-011](decisions.md#adr-011-conversationid-on-503-504-and-500)).
 
 Conversation history is not sent to rag-service. Each question is answered on its own. See [ADR-003](decisions.md#adr-003-transcript-only-memory-rag-chain-unchanged).
+
+## Startup
+
+rag-service starts serving before its index exists. The FastAPI lifespan starts a daemon thread that builds the index and returns at once, so uvicorn binds `:8000` after its imports. `/health` reports `loading`, then `ok` with the chunk count, or `error` with a `detail`. While it is `loading`, `/ask` returns `503`, which the backend passes on as `503` with `conversationId`. See [ADR-020](decisions.md#adr-020-build-the-index-in-a-background-thread). Before `864d09c` the build ran inside the lifespan and the port stayed closed until it finished.
+
+The backend and frontend do not wait for rag-service. The start order in the [run book](run-book.md#start-order) only avoids 503s on the first question. `scripts/smoke.sh` checks the whole path once all four processes are up.
 
 ## What is stored where
 
