@@ -18,9 +18,9 @@
 
 Phases 1A–1C ran in parallel and are merged into `feature/chat-rag-app`. On the merged tree the unit suites pass: rag-service 22, backend 48, frontend 19. Contract A changed during Phase 1 (`06a65c5`, `ce192d9`): 503, 504 and 500 now carry `conversationId`, and 405 and 415 are listed.
 
-Before Phase 2:
-- The shared `.venv` can't import `chromadb` (`ImportError: cannot import name '_ExtendedAttributes' from 'opentelemetry.util.types'`), so rag-service starts with status `error`. Fixing it needs a pip change in the shared venv.
-- `app.py`'s lifespan awaits the index build, so uvicorn doesn't bind `:8000` until the build finishes.
+Fixed before Phase 2 (2026-10-06):
+- The shared `.venv` couldn't import `chromadb`: installing `fastapi` had raised `opentelemetry-api` to 1.45.0 while `opentelemetry-sdk` stayed at 1.41.0. The OpenTelemetry packages were upgraded to 1.45.0; rag-service now starts with status `ok` (133 chunks).
+- `app.py` awaited the index build in the lifespan, so uvicorn didn't bind `:8000` until it finished. The build now runs in a background thread and `/health` reports `loading` meanwhile.
 
 ---
 

@@ -22,7 +22,7 @@ Terms as they are used in this repo's code and docs. Terms are listed alphabetic
 
 **IndexState.** The dataclass in `rag-service/app.py` that holds `status` (`loading`, `ok`, `error`), `chunks`, `detail` and the `PDFRAGApp` instance.
 
-**Lifespan.** FastAPI's startup and shutdown hook. In `app.py` it builds the index. Because uvicorn runs it before binding the port, the index build blocks the port ([run-book known gaps](run-book.md#known-gaps)).
+**Lifespan.** FastAPI's startup and shutdown hook. In `app.py` it starts the index build in a background thread and returns at once, so uvicorn binds the port while the index builds.
 
 **Message (backend).** A row in the `messages` table: role (`user` or `assistant`), content, creation time. Shown as `{ role, content, createdAt }` in the transcript endpoint. `role` is lowercased in the API.
 
