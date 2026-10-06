@@ -60,7 +60,7 @@ Project agents (`.claude/agents/`) are committed and shared with anyone who clon
 | Need | Status / command |
 |---|---|
 | Claude Code + git | installed |
-| Phase 0 committed | worktrees branch from the current commit, so uncommitted files don't exist inside them |
+| Phase 0 committed | worktrees contain only committed files. They may also start from `origin/main` rather than your branch (it happened here), so record the base with `git log -1 --format=%h` and pass it to every agent |
 | Shared Python deps | `fastapi` installed into `.venv` in Phase 0; agents are denied `pip install` so they can't change the shared venv |
 | Network | npm registry, Maven Central, start.spring.io |
 | Ollama running | only for Phase 2 (`ollama serve`; `gemma4` and `nomic-embed-text` pulled) |
@@ -73,7 +73,9 @@ Run these from the repo root on the `feature/chat-rag-app` branch.
 **1. Launch the three module agents in parallel**
 ```
 Launch the rag-service-dev, backend-dev and frontend-dev agents in parallel,
-each with worktree isolation. Each one should implement its module per
+each with worktree isolation. Tell each one its expected base commit is
+<output of git log -1 --format=%h>, so it can run the check in its
+"Before you start" section. Each one should implement its module per
 docs/api-contract.md and its agent instructions, make its tests pass,
 write its README, and commit on its own branch. When all three finish,
 report for each: branch name, files changed, test results, and any
@@ -82,12 +84,13 @@ contract questions it raised. Do not merge yet.
 
 **2. Review one agent's work**
 ```
-Show me the diff summary of the backend-dev branch against
-feature/chat-rag-app, then run its test suite in that worktree and show
-me the result.
+Check that the backend-dev branch is built on the base commit
+(git merge-base --is-ancestor <base> <branch>). Then show me the diff
+summary of that branch against feature/chat-rag-app, run its test suite
+in that worktree and show me the result.
 ```
 
-**3. Send a follow-up to an agent that already ran** (it keeps its context)
+**3. Send a follow-up to an agent that already ran** (it keeps its context while its transcript exists; after that the message fails with "No transcript found", so launch a new agent with the full context instead)
 ```
 Send backend-dev this follow-up: <the change you want>. Re-run its tests
 and commit.
@@ -95,9 +98,11 @@ and commit.
 
 **4. Merge and integrate**
 ```
-Merge the three agent branches into feature/chat-rag-app one at a time
-and stop if there's any conflict. Then launch the integration-tester
-agent (no worktree) and report its results.
+Merge the three agent branches into feature/chat-rag-app one at a time.
+Before each merge, run git merge-base --is-ancestor <base> <branch> and
+stop if it fails (the branch wasn't built on the contract). Stop if there's
+any conflict. Then launch the integration-tester agent (no worktree) with
+the resulting HEAD as its expected commit, and report its results.
 ```
 
 **5. Change the contract mid-flight**
@@ -116,5 +121,5 @@ Use the frontend-dev agent with worktree isolation to <task>.
 
 The agents work on their own, but you review at these points:
 1. After launch: read each final report. Agents summarize their own results, so check them against the actual test output.
-2. Before merging: look at each diff (prompt 2).
+2. Before merging: confirm each branch is built on the base commit, then look at its diff (prompt 2).
 3. After integration: open http://localhost:5173 and ask a question yourself.
