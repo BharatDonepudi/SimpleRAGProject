@@ -70,7 +70,7 @@ The connect timeout to rag-service is fixed at 5 seconds.
 | `POST /api/chat` | Ask a question. Body: `{"conversationId": null or UUID, "message": "..."}` |
 | `GET /api/conversations/{id}/messages` | Transcript of a conversation, oldest first |
 
-Errors use the body `{"error": "..."}`. On `503` and `504` the body also includes `conversationId`, so the client can keep the conversation. Status codes: `400`, `404`, `405`, `415`, `503`, `504`, `500`.
+Errors use the body `{"error": "..."}`. On `503`, `504` and `500` the body also includes `conversationId` once the conversation exists (including one this request created), so the client can keep the conversation. The user message is saved before rag-service is called, so it stays in the transcript on any of these. A `500` never includes stack traces or rag-service details. Status codes: `400`, `404`, `405`, `415`, `503`, `504`, `500`.
 
 ## Package layout
 

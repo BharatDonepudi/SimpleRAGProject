@@ -20,6 +20,7 @@ worktree A       worktree B    worktree C          main checkout
 | `.claude/agents/backend-dev.md` | Spring Boot REST API, H2 transcript log, rag-service client |
 | `.claude/agents/frontend-dev.md` | React/Vite chat page |
 | `.claude/agents/integration-tester.md` | Runs every suite, starts the stack, smoke tests, root docs |
+| `.claude/agents/docs-curator.md` | Builds the onboarding knowledge base (`docs/knowledge-base/`) and `docs/CHANGELOG.md` from git history and code |
 | `.claude/settings.json` | Commands agents may run without a permission prompt, plus a deny list |
 | `docs/api-contract.md` | The HTTP contracts every module builds against |
 

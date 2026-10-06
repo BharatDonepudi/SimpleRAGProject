@@ -4,19 +4,23 @@
 |---|---|
 | Branch | `feature/chat-rag-app` |
 | Approved | 2026-10-05 |
-| Related | [API contract](api-contract.md) · [Agents guide](agents.md) · [Agent study notes](agent-notes.md) |
+| Related | [API contract](api-contract.md) · [Agents guide](agents.md) · [Agent study notes](agent-notes.md) · [Knowledge base](knowledge-base/README.md) · [Changelog](CHANGELOG.md) |
 
 ## Status
 
 | Phase | What | Owner | Status |
 |---|---|---|---|
 | 0 | Foundation: restructure, contract, agents, permissions | main session | ✅ Done (`b8b0294`) |
-| 1A | rag-service: `prompts.py`, `pdf_rag.py` refactor, FastAPI `app.py` | `rag-service-dev` | ⏳ Not started |
-| 1B | backend: Spring Boot REST API + H2 transcript log | `backend-dev` | ⏳ Not started |
-| 1C | frontend: React chat page | `frontend-dev` | ⏳ Not started |
+| 1A | rag-service: `prompts.py`, `pdf_rag.py` refactor, FastAPI `app.py` | `rag-service-dev` | ✅ Done (`d065033`, merged `58c163e`) |
+| 1B | backend: Spring Boot REST API + H2 transcript log | `backend-dev` | ✅ Done (`1131c7d`, `2413a12`, merged `25c7cab`) |
+| 1C | frontend: React chat page | `frontend-dev` | ✅ Done (`3a6e764`, `121f813`, merged `7714c62`) |
 | 2 | Integration: merge, all suites, full stack, smoke test, root docs | `integration-tester` | ⏳ Not started |
 
-Phases 1A–1C run in parallel. Phase 2 starts after all three are reviewed and merged.
+Phases 1A–1C ran in parallel and are merged into `feature/chat-rag-app`. On the merged tree the unit suites pass: rag-service 22, backend 48, frontend 19. Contract A changed during Phase 1 (`06a65c5`, `ce192d9`): 503, 504 and 500 now carry `conversationId`, and 405 and 415 are listed.
+
+Before Phase 2:
+- The shared `.venv` can't import `chromadb` (`ImportError: cannot import name '_ExtendedAttributes' from 'opentelemetry.util.types'`), so rag-service starts with status `error`. Fixing it needs a pip change in the shared venv.
+- `app.py`'s lifespan awaits the index build, so uvicorn doesn't bind `:8000` until the build finishes.
 
 ---
 
@@ -58,7 +62,8 @@ React (Vite, :5173) ──/api──▶ Spring Boot (:8080) ──HTTP──▶ 
 |---|---|---|
 | Node / npm | 24.14 / 11.9 | frontend |
 | Java (OpenJDK) | 21.0.10 | backend |
-| Maven | 3.9.8 (projects use the `./mvnw` wrapper) | backend |
+| Maven | 3.9.8 installed; the backend uses the `./mvnw` wrapper (3.9.16) | backend |
+| Spring Boot | 4.1.1 (from Initializr) | backend |
 | Python (`.venv`) | 3.13.1, with fastapi 0.142.2, uvicorn, httpx | rag-service |
 | Ollama | 0.33.3 with `gemma4` and `nomic-embed-text` | rag-service (runtime), Phase 2 |
 | git | 2.54 | worktrees |
