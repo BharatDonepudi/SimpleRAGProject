@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(./mvnw:*)",
+      "Bash(mvn:*)",
+      "Bash(java -version)",
+      "Bash(curl -s https://start.spring.io:*)",
+      "Bash(curl https://start.spring.io:*)",
+      "Bash(unzip:*)",
+      "Bash(/Users/keerthikambhampati/gitRepo/LLMUsingApi/.venv/bin/python:*)",
+      "Bash(/Users/keerthikambhampati/gitRepo/LLMUsingApi/.venv/bin/uvicorn:*)",
+      "Bash(../.venv/bin/python:*)",
+      "Bash(../.venv/bin/uvicorn:*)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl http://localhost:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(/Users/keerthikambhampati/gitRepo/LLMUsingApi/.venv/bin/pip install:*)"
+    ]
+  }
+}

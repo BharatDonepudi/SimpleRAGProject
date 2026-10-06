@@ -12,3 +12,9 @@ fastembed
 pdfplumber
 sentence-transformers
 elevenlabs
+langchain-classic
+pypdf
+requests
+fastapi
+uvicorn
+httpx
