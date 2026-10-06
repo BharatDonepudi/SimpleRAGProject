@@ -17,6 +17,7 @@ React (Vite, :5173) ──/api──▶ Spring Boot (:8080) ──HTTP──▶ 
 | `backend/` | Spring Boot (Maven, Java 21) chat REST API | pending |
 | `frontend/` | React + Vite chat page | pending |
 | `docs/api-contract.md` | **Source of truth** for every HTTP boundary. Modules must match it; don't change it from inside a module | done |
+| `docs/implementation-plan.md` | Phased plan and status; update its Status table as phases finish | done |
 | `docs/agents.md` | How the parallel subagents are set up and launched | done |
 
 `starter-1.py` and `start-2.py` at the root are standalone Ollama demos (raw HTTP and the `ollama` client), unrelated to the app.

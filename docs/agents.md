@@ -47,10 +47,12 @@ Every agent body in this repo follows the same five sections:
 ## How to create a new agent
 
 Either:
-- Run `/agents` in Claude Code and pick "Create new agent" (it can draft one for you), or
+- Ask Claude to write it, e.g. "create a code-reviewer subagent in .claude/agents that reviews diffs in backend/ and reports issues without editing files", or
 - Write `.claude/agents/<name>.md` by hand using the anatomy above.
 
-Project agents (`.claude/agents/`) are committed and shared with anyone who clones the repo. Personal agents go in `~/.claude/agents/`. Restart the session, or re-open `/agents`, if a newly written file doesn't show up.
+(The interactive `/agents` wizard used to do this but has been removed from Claude Code.)
+
+Project agents (`.claude/agents/`) are committed and shared with anyone who clones the repo. Personal agents go in `~/.claude/agents/`. Start a new session if a newly written file doesn't get picked up. Reference: https://code.claude.com/docs/en/sub-agents
 
 ## Prerequisites (one-time)
 

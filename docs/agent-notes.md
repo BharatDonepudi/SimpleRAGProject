@@ -40,7 +40,7 @@ model: inherit
 | `tools` | Allowlist; omit it to inherit everything | File tools + Bash only. No web, no spawning other agents, so it can't recurse |
 | `model` | `inherit` / `sonnet` / `opus` / `haiku` | `inherit`. A cheaper model could handle routine scaffolding, but quality matters more here |
 
-You can create one with `/agents` (an interactive wizard that can draft it for you) or write the file by hand.
+You create one by writing the file by hand or asking Claude to write it ("create a code-reviewer subagent that ..."). The interactive `/agents` wizard has been removed from Claude Code (confirmed October 2026). Docs: https://code.claude.com/docs/en/sub-agents
 
 **Interview angle:** *"How does Claude know which agent to use?"* From the `description`. Write it like a routing rule: what the agent does and when to use it. Vague descriptions lead to wrong or missed delegation.
 
