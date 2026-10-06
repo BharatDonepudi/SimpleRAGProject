@@ -40,20 +40,28 @@ Request:
 ```
 `createdAt` is the timestamp of the assistant message.
 
-Errors (all errors use this one shape):
+Errors (all errors use this shape):
 ```json
 { "error": "human-readable message" }
 ```
 
+On `503` and `504` the body also carries `conversationId` once the conversation exists (including one created by this request), so the client can keep the transcript:
+```json
+{ "error": "The document assistant is not ready yet. Try again shortly.", "conversationId": "3f6c2a8e-1b1d-4c7e-9a52-0d8b8e6f1a10" }
+```
+`conversationId` is omitted when no conversation was created (for example, a 400 or a 404).
+
 | Status | When |
 |---|---|
-| `400` | `message` is missing, blank, or over 2000 characters; malformed JSON |
+| `400` | `message` is missing, blank, or over 2000 characters; malformed JSON; malformed `conversationId` |
 | `404` | `conversationId` given but unknown |
+| `405` | wrong HTTP method on a known path |
+| `415` | request body is not `Content-Type: application/json` |
 | `503` | rag-service is unreachable or still building its index |
 | `504` | rag-service did not answer within the backend's read timeout (default 120s) |
 | `500` | anything else (the message must not leak stack traces) |
 
-The user message is saved before rag-service is called, so it stays in the transcript even if the call fails with 503/504.
+The user message is saved before rag-service is called, so it stays in the transcript even if the call fails with 503/504. The client should store the returned `conversationId` on 503/504 and keep using it.
 
 ### `GET /api/conversations/{id}/messages`
 
