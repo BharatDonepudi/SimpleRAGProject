@@ -37,14 +37,17 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AnswerUnavailableException.class)
     public ResponseEntity<ErrorResponse> handleAnswerUnavailable(AnswerUnavailableException ex) {
-        if (ex.getReason() == AnswerUnavailableException.Reason.TIMEOUT) {
-            return body(HttpStatus.GATEWAY_TIMEOUT, new ErrorResponse(
+        return switch (ex.getReason()) {
+            case TIMEOUT -> body(HttpStatus.GATEWAY_TIMEOUT, new ErrorResponse(
                     "The document assistant took too long to answer. Try again shortly.",
                     ex.getConversationId()));
-        }
-        return body(HttpStatus.SERVICE_UNAVAILABLE, new ErrorResponse(
-                "The document assistant is not ready yet. Try again shortly.",
-                ex.getConversationId()));
+            case UNAVAILABLE -> body(HttpStatus.SERVICE_UNAVAILABLE, new ErrorResponse(
+                    "The document assistant is not ready yet. Try again shortly.",
+                    ex.getConversationId()));
+            case FAILED -> body(HttpStatus.INTERNAL_SERVER_ERROR, new ErrorResponse(
+                    "The document assistant could not answer. Try again shortly.",
+                    ex.getConversationId()));
+        };
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

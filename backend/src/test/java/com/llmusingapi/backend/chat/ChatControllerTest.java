@@ -11,6 +11,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,6 +20,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -179,6 +182,21 @@ class ChatControllerTest {
                 .andExpect(status().isGatewayTimeout())
                 .andExpect(jsonPath("$.error").exists())
                 .andExpect(jsonPath("$.conversationId").value(CONVERSATION_ID.toString()));
+    }
+
+    @Test
+    void ragFailureReturns500WithConversationIdAndGenericMessage() throws Exception {
+        when(chatService.chat(any(ChatRequest.class))).thenThrow(
+                new AnswerUnavailableException(CONVERSATION_ID, AnswerUnavailableException.Reason.FAILED,
+                        new IllegalStateException("rag-service said: secret stack detail")));
+
+        mockMvc.perform(post(CHAT_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"hi\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("The document assistant could not answer. Try again shortly."))
+                .andExpect(jsonPath("$.conversationId").value(CONVERSATION_ID.toString()))
+                .andExpect(content().string(not(containsString("secret"))));
     }
 
     @Test

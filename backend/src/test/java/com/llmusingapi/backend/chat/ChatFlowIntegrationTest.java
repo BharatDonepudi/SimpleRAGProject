@@ -1,6 +1,7 @@
 package com.llmusingapi.backend.chat;
 
 import com.llmusingapi.backend.rag.RagClient;
+import com.llmusingapi.backend.rag.RagFailedException;
 import com.llmusingapi.backend.rag.RagTimeoutException;
 import com.llmusingapi.backend.rag.RagUnavailableException;
 import org.junit.jupiter.api.Test;
@@ -96,6 +97,28 @@ class ChatFlowIntegrationTest {
                 .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[2].role").value("user"))
                 .andExpect(jsonPath("$[2].content").value("second"));
+    }
+
+    @Test
+    void ragFailureOn500ReturnsConversationIdWithoutLeakingDetailsAndKeepsUserMessage() throws Exception {
+        when(ragClient.ask(anyString())).thenThrow(new RagFailedException("rag-service returned HTTP 500", null));
+
+        MvcResult failed = mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"will the chain fail\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("The document assistant could not answer. Try again shortly."))
+                .andExpect(jsonPath("$.conversationId").exists())
+                .andReturn();
+        String body = failed.getResponse().getContentAsString();
+        String conversationId = com.jayway.jsonpath.JsonPath.read(body, "$.conversationId");
+        org.assertj.core.api.Assertions.assertThat(body).doesNotContain("HTTP 500");
+
+        mockMvc.perform(get("/api/conversations/" + conversationId + "/messages"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].role").value("user"))
+                .andExpect(jsonPath("$[0].content").value("will the chain fail"));
     }
 
     @Test

@@ -158,16 +158,52 @@ class ChatServiceTest {
     }
 
     @Test
-    void ragFailureIsRethrownAndNoAssistantMessageIsSaved() {
+    void ragFailureCarriesConversationIdAndKeepsUserMessage() {
         when(conversationRepository.save(any(Conversation.class))).thenAnswer(inv -> inv.getArgument(0));
         when(ragClient.ask(anyString())).thenThrow(new RagFailedException("chain failed", null));
 
         assertThatThrownBy(() -> chatService.chat(new ChatRequest(null, "hi")))
-                .isInstanceOf(RagFailedException.class);
+                .isInstanceOfSatisfying(AnswerUnavailableException.class, ex -> {
+                    assertThat(ex.getReason()).isEqualTo(AnswerUnavailableException.Reason.FAILED);
+                    assertThat(ex.getConversationId()).isNotNull();
+                    assertThat(ex.getCause()).isInstanceOf(RagFailedException.class);
+                });
 
         ArgumentCaptor<Message> saved = ArgumentCaptor.forClass(Message.class);
         verify(messageRepository).save(saved.capture());
         assertThat(saved.getValue().getRole()).isEqualTo(Role.USER);
+    }
+
+    @Test
+    void unexpectedErrorAfterConversationCreatedCarriesConversationId() {
+        Conversation existing = new Conversation(Instant.parse("2026-10-05T22:14:00.000Z"));
+        when(conversationRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        when(ragClient.ask(anyString())).thenReturn("answer");
+        // The user message saves, but storing the answer fails.
+        when(messageRepository.save(any(Message.class)))
+                .thenReturn(null)
+                .thenThrow(new IllegalStateException("db down"));
+
+        assertThatThrownBy(() -> chatService.chat(new ChatRequest(existing.getId(), "hi")))
+                .isInstanceOfSatisfying(AnswerUnavailableException.class, ex -> {
+                    assertThat(ex.getReason()).isEqualTo(AnswerUnavailableException.Reason.FAILED);
+                    assertThat(ex.getConversationId()).isEqualTo(existing.getId());
+                });
+
+        ArgumentCaptor<Message> saved = ArgumentCaptor.forClass(Message.class);
+        verify(messageRepository, org.mockito.Mockito.times(2)).save(saved.capture());
+        assertThat(saved.getAllValues().get(0).getRole()).isEqualTo(Role.USER);
+    }
+
+    @Test
+    void unexpectedErrorBeforeConversationExistsPassesThroughUnwrapped() {
+        when(conversationRepository.save(any(Conversation.class)))
+                .thenThrow(new IllegalStateException("db down"));
+
+        assertThatThrownBy(() -> chatService.chat(new ChatRequest(null, "hi")))
+                .isInstanceOf(IllegalStateException.class);
+
+        verifyNoInteractions(messageRepository, ragClient);
     }
 
     @Test

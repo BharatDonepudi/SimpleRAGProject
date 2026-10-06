@@ -37,18 +37,31 @@ public class ChatService {
     /**
      * Stores the user message first, then asks rag-service and stores the answer.
      * No transaction spans the rag call, so the database is not held open for up to 120s.
-     * If rag-service fails, the user message and conversation stay saved and the failure
-     * is rethrown as {@link AnswerUnavailableException} carrying the conversation id.
+     *
+     * <p>Once the conversation exists, any failure is rethrown as {@link AnswerUnavailableException}
+     * carrying the conversation id. The user message stays saved in every case.
+     * Failures before the conversation exists (unknown id) pass through unchanged.
      */
     public ChatResponse chat(ChatRequest request) {
         Conversation conversation = resolveConversation(request.conversationId());
         UUID conversationId = conversation.getId();
+        try {
+            return answerAndStore(conversation, request.message());
+        } catch (AnswerUnavailableException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("Unexpected failure in conversation {}", conversationId, ex);
+            throw new AnswerUnavailableException(conversationId, AnswerUnavailableException.Reason.FAILED, ex);
+        }
+    }
 
-        messageRepository.save(new Message(conversation, Role.USER, request.message(), ApiTimestamps.now()));
+    private ChatResponse answerAndStore(Conversation conversation, String question) {
+        UUID conversationId = conversation.getId();
+        messageRepository.save(new Message(conversation, Role.USER, question, ApiTimestamps.now()));
 
         String answer;
         try {
-            answer = ragClient.ask(request.message());
+            answer = ragClient.ask(question);
         } catch (RagUnavailableException ex) {
             log.warn("rag-service unavailable for conversation {}: {}", conversationId, ex.getMessage());
             throw new AnswerUnavailableException(conversationId, AnswerUnavailableException.Reason.UNAVAILABLE, ex);
