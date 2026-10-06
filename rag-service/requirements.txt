@@ -1,20 +1,27 @@
-ollama
-chromadb
-pdfplumber
-langchain
-langchain-core
-langchain-ollama
-langchain-community
-langchain_text_splitters
-unstructured
-unstructured[all-docs]
-fastembed
-pdfplumber
-sentence-transformers
-elevenlabs
-langchain-classic
-pypdf
-requests
-fastapi
-uvicorn
-httpx
+# Direct dependencies of rag-service, pinned to the versions verified together
+# on Python 3.13 (unit suite plus a live index build against Ollama 0.33.3).
+
+# RAG pipeline (pdf_rag.py, prompts.py)
+ollama==0.6.1
+chromadb==1.5.7                  # used through langchain_community.vectorstores.Chroma
+pypdf==6.10.0                    # used through langchain_community.document_loaders.PyPDFLoader
+langchain-core==1.2.28
+langchain-community==0.4.1
+langchain-classic==1.0.3         # MultiQueryRetriever
+langchain-ollama==1.1.0
+langchain-text-splitters==1.1.1
+
+# HTTP service (app.py) and its tests
+fastapi==0.142.2
+uvicorn==0.44.0
+httpx==0.28.1                    # needed by fastapi.testclient
+
+# OpenTelemetry comes in through chromadb and fastapi. opentelemetry-sdk pins
+# opentelemetry-api exactly, and fastapi needs opentelemetry-api>=1.44, so keep
+# the family on one version. A mismatch breaks `import chromadb` with
+# "cannot import name '_ExtendedAttributes' from 'opentelemetry.util.types'".
+opentelemetry-api==1.45.0
+opentelemetry-sdk==1.45.0
+opentelemetry-proto==1.45.0
+opentelemetry-exporter-otlp-proto-common==1.45.0
+opentelemetry-exporter-otlp-proto-grpc==1.45.0
