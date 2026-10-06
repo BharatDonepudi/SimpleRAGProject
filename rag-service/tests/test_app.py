@@ -1,5 +1,7 @@
 import sys
+import threading
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -25,12 +27,20 @@ def make_fake_rag(chunks=42, answer="The main points are ..."):
     return rag
 
 
+@contextmanager
+def started_client(**kwargs):
+    """A TestClient with the lifespan run and the background index build finished."""
+    with TestClient(app, **kwargs) as client:
+        app.state.index_thread.join(timeout=5)
+        yield client
+
+
 class AppTests(unittest.TestCase):
     def test_ask_returns_answer_after_startup(self):
         rag = make_fake_rag(answer="The main points are ...")
 
         with patch.object(app_module, "PDFRAGApp", return_value=rag):
-            with TestClient(app) as client:
+            with started_client() as client:
                 response = client.post("/ask", json={"question": "What are the main points"})
 
         self.assertEqual(response.status_code, 200)
@@ -42,7 +52,7 @@ class AppTests(unittest.TestCase):
         rag = make_fake_rag(chunks=42)
 
         with patch.object(app_module, "PDFRAGApp", return_value=rag):
-            with TestClient(app) as client:
+            with started_client() as client:
                 response = client.get("/health")
 
         self.assertEqual(response.status_code, 200)
@@ -74,12 +84,39 @@ class AppTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "loading", "chunks": 0})
 
+    def test_startup_does_not_wait_for_index_build(self):
+        rag = make_fake_rag(chunks=7)
+        release = threading.Event()
+        finish_build = rag.build_index.side_effect
+
+        def slow_build_index():
+            release.wait(timeout=5)
+            finish_build()
+
+        rag.build_index.side_effect = slow_build_index
+
+        with patch.object(app_module, "PDFRAGApp", return_value=rag):
+            # Entering the client runs the lifespan; it must return while the build is still blocked.
+            with TestClient(app) as client:
+                try:
+                    loading = client.get("/health")
+                    ask = client.post("/ask", json={"question": "anything"})
+                finally:
+                    release.set()
+                app.state.index_thread.join(timeout=5)
+                ready = client.get("/health")
+
+        self.assertEqual(loading.json(), {"status": "loading", "chunks": 0})
+        self.assertEqual(ask.status_code, 503)
+        self.assertEqual(ask.json(), {"detail": "index loading"})
+        self.assertEqual(ready.json(), {"status": "ok", "chunks": 7})
+
     def test_startup_failure_reports_error_and_ask_returns_503(self):
         rag = make_fake_rag()
         rag.build_index.side_effect = FileNotFoundError("PDF not found: ./data/HOA.pdf")
 
         with patch.object(app_module, "PDFRAGApp", return_value=rag), patch.object(app_module, "logger"):
-            with TestClient(app) as client:
+            with started_client() as client:
                 health = client.get("/health")
                 ask = client.post("/ask", json={"question": "anything"})
 
@@ -95,7 +132,7 @@ class AppTests(unittest.TestCase):
         rag.answer.side_effect = RuntimeError("connection refused to secret host")
 
         with patch.object(app_module, "PDFRAGApp", return_value=rag), patch.object(app_module, "logger"):
-            with TestClient(app, raise_server_exceptions=False) as client:
+            with started_client(raise_server_exceptions=False) as client:
                 response = client.post("/ask", json={"question": "anything"})
 
         self.assertEqual(response.status_code, 500)
@@ -105,7 +142,7 @@ class AppTests(unittest.TestCase):
         rag = make_fake_rag()
 
         with patch.object(app_module, "PDFRAGApp", return_value=rag):
-            with TestClient(app) as client:
+            with started_client() as client:
                 response = client.post("/ask", json={})
 
         self.assertEqual(response.status_code, 422)
@@ -115,7 +152,7 @@ class AppTests(unittest.TestCase):
         rag = make_fake_rag()
 
         with patch.object(app_module, "PDFRAGApp", return_value=rag):
-            with TestClient(app) as client:
+            with started_client() as client:
                 response = client.post("/ask", json={"question": 123})
 
         self.assertEqual(response.status_code, 422)

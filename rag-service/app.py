@@ -8,13 +8,13 @@ Run from this folder: `../.venv/bin/uvicorn app:app --port 8000`
 """
 
 import logging
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
-from starlette.concurrency import run_in_threadpool
 
 from pdf_rag import PDFRAGApp, RAGConfig
 
@@ -37,22 +37,33 @@ class IndexState:
     rag: Optional[PDFRAGApp] = None
 
 
+def build_index(state: IndexState, rag: PDFRAGApp) -> None:
+    """Build the index and record the outcome on `state`. Runs in a background thread."""
+    try:
+        rag.build_index()
+    except Exception as exc:  # startup must not crash the server; report it instead
+        logger.exception("failed to build index")
+        state.detail = str(exc) or type(exc).__name__
+        state.status = "error"
+    else:
+        # Set rag and chunks before status, so a handler that sees "ok" also sees the chain.
+        state.rag = rag
+        state.chunks = rag.chunk_count
+        state.status = "ok"
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     state = IndexState()
     app.state.index = state
-    rag = PDFRAGApp(RAGConfig())
-    try:
-        # Build in a worker thread so the event loop (and /health) stays responsive.
-        await run_in_threadpool(rag.build_index)
-    except Exception as exc:  # startup must not crash the server; report it instead
-        logger.exception("failed to build index")
-        state.status = "error"
-        state.detail = str(exc) or type(exc).__name__
-    else:
-        state.rag = rag
-        state.chunks = rag.chunk_count
-        state.status = "ok"
+    # Don't await the build: uvicorn binds the port only after startup returns,
+    # and /health must be reachable (reporting "loading") while the index builds.
+    # Daemon, so a shutdown during a long build isn't held up by it.
+    thread = threading.Thread(
+        target=build_index, args=(state, PDFRAGApp(RAGConfig())), name="index-build", daemon=True
+    )
+    app.state.index_thread = thread
+    thread.start()
     yield
 
 
