@@ -57,7 +57,15 @@ npm install                                    # first time only
 npm run dev
 ```
 
-Open http://localhost:5173 and ask a question. Answers from a local model take 10–60 seconds.
+Open http://localhost:5173 and ask a question. Answers from the local model take about 8–25 seconds.
+
+With the stack running, check it end to end from the repo root:
+
+```bash
+scripts/smoke.sh    # exits non-zero on the first failed check
+```
+
+It checks rag-service and backend health, asks one real question (so it takes 10–30 seconds), reads back the transcript, and checks the 400 and 404 error shapes. `RAG_URL`, `BACKEND_URL`, `QUESTION` and `CHAT_TIMEOUT` override its defaults.
 
 ## Test
 
@@ -71,4 +79,4 @@ cd frontend && npm test -- --run
 
 ## Status
 
-Phases 0 and 1 (all three modules) are merged. Phase 2, the full-stack run and smoke test, is next. See [docs/implementation-plan.md](docs/implementation-plan.md) for the plan and its known blockers, and [docs/CHANGELOG.md](docs/CHANGELOG.md) for what changed in each merge.
+Phases 0 and 1 are merged. In Phase 2 the full stack runs, `scripts/smoke.sh` passes, and rag-service going down returns 503 without losing the conversation. The browser check is still to do. See [docs/implementation-plan.md](docs/implementation-plan.md) for the plan and [docs/CHANGELOG.md](docs/CHANGELOG.md) for what changed in each merge.

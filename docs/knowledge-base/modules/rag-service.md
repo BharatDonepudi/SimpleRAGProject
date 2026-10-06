@@ -55,7 +55,7 @@ Fixed in `RAGConfig`: collection `simple-rag`, chunk size 1200, overlap 300.
 
 ## Tests
 
-23 tests in three files, all using stdlib `unittest`. They mock Ollama and PDF loading. `test_app.py` (9 tests) runs the lifespan through `started_client()`, which enters `TestClient(app)` and joins the index thread, and replaces `PDFRAGApp` with a mock via `patch.object`, so no real index is built.
+25 tests in three files, all using stdlib `unittest`. They mock Ollama and PDF loading. `test_app.py` (10 tests) runs the lifespan through `started_client()`, which enters `TestClient(app)` and joins the index thread, and replaces `PDFRAGApp` with a mock via `patch.object`, so no real index is built.
 
 Verified 2026-10-06: `23 tests OK`. `test_startup_does_not_wait_for_index_build` holds the build open and checks `/health` reports `loading` and `/ask` returns 503.
 
@@ -66,7 +66,7 @@ Verified 2026-10-06: `23 tests OK`. `test_startup_does_not_wait_for_index_build`
 - **`ollama.pull()` on every start.** `build_vector_db` pulls the embedding model each time the index is built. This needs Ollama up during startup.
 - **Output printed.** `load_documents` and the other steps `print` progress lines, which is noise under uvicorn.
 - **Concurrency not tested.** `/ask` runs in a threadpool against one shared chain. Parallel calls were not tested.
-- **Real chain not run.** After the chromadb fix on 2026-10-06 the service builds the index (133 chunks, about 10 seconds), but no question has been sent to `/ask` through the real model yet. Phase 2's smoke test covers it.
+- **Model reasoning is off.** `RAGConfig.reasoning=False`. With `gemma4`'s default thinking, answers took 40–84 seconds and sometimes came back empty ([run-book known gaps](../run-book.md#known-gaps), item 14). With it off, answers take 8–22 seconds. There are still two LLM calls per question (query rewrite, then answer).
 
 ## Related
 

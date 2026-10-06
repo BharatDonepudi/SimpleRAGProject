@@ -99,7 +99,7 @@ These are what each symptom means. The statuses come from [Contract A](../api-co
 
 ## Known gaps
 
-Found while writing this run book. Gaps 1–7 and 12 were fixed on 2026-10-06 by the main session; the root README got an interim rewrite, and Phase 2 still adds the smoke test to it. Owners are listed so the right agent or session can fix each one. Contract changes go through the main session.
+Found while writing this run book. Gaps 1–8 and 12–14 were fixed on 2026-10-06 by the main session; the root README got an interim rewrite, and Phase 2 still adds the smoke test to it. Owners are listed so the right agent or session can fix each one. Contract changes go through the main session.
 
 | # | Gap | Evidence | Owner |
 |---|---|---|---|
@@ -110,9 +110,10 @@ Found while writing this run book. Gaps 1–7 and 12 were fixed on 2026-10-06 by
 | 5 | Root `CLAUDE.md` still lists rag-service, backend and frontend as "pending". Its rag-service section describes the old `run()` pipeline and says the test file loads by `importlib`; the tests now use a `sys.path` insert. | `CLAUDE.md` status table and "rag-service/pdf_rag.py architecture" section; `rag-service/tests/test_pdf_rag.py` top lines. | Main session **Fixed 2026-10-06.** |
 | 6 | `docs/implementation-plan.md` status table still shows phases 1A, 1B and 1C as "Not started". | Status table at the top of the file. | Main session **Fixed 2026-10-06.** |
 | 7 | Root `README.md` still describes the single script and lists packages from before the refactor. It is due to be rewritten in Phase 2. | `README.md`. | integration-tester (Phase 2) **Fixed 2026-10-06.** |
-| 8 | `scripts/` and `scripts/smoke.sh` do not exist yet. Phase 2 is not started. | `ls` of the repo root. | integration-tester (Phase 2) |
+| 8 | `scripts/` and `scripts/smoke.sh` do not exist yet. Phase 2 is not started. | `ls` of the repo root. | integration-tester (Phase 2) **Fixed 2026-10-06:** `scripts/smoke.sh` added and passing against the live stack. |
 | 9 | Six git worktrees exist under `.claude/worktrees/` (one locked: `agent-acdd7b1c3a15d0f2f`). Their `worktree-agent-*` branches and `feature/rag-service-phase1a` remain after merge. | `git worktree list`. | Main session |
 | 10 | Two commits on worktree branches (`51edb5f`, `ae0dff0`) are superseded attempts at Phases 1B and 1C and are not on this branch. | `git merge-base --is-ancestor`. See [CHANGELOG](../CHANGELOG.md#not-on-this-branch). | Main session |
 | 11 | `starter-1.py` and `start-2.py` at the repo root are untracked, although the plan says they stay at the root. `docs/agents.md` has uncommitted edits. | `git status`. | Main session |
 | 12 | The shared `.venv` cannot import `chromadb` (an OpenTelemetry version mismatch, seen 2026-10-06). rag-service therefore starts with `status: error` in this environment, and the `/ask` answer path cannot be run here. The unit tests pass because they mock the pipeline steps and never reach this import. | Live run of `uvicorn app:app` from `rag-service/` on 2026-10-06. | Main session (venv); rag-service-dev if the requirements need a pin **Fixed 2026-10-06.** |
-| 13 | Phase 2 has not run here. There is no recorded full-stack run and no smoke test. The answer path through a real Ollama model is not verified in these docs. | Plan status table; no `scripts/`. | integration-tester (Phase 2) |
+| 13 | Phase 2 has not run here. There is no recorded full-stack run and no smoke test. The answer path through a real Ollama model is not verified in these docs. | Plan status table; no `scripts/`. | integration-tester (Phase 2) **Fixed 2026-10-06:** `scripts/smoke.sh` added and passing against the live stack. |
+| 14 | Answers through `gemma4` took 40–84 seconds and sometimes came back empty (200 with `"answer": ""`, shown as a blank bubble). The model's default hidden reasoning used most of the tokens and sometimes all of them (`done_reason=length`). | Phase 2 browser check; probe of the raw `ChatOllama` message on 2026-10-06. | **Fixed 2026-10-06:** `RAGConfig.reasoning=False`; `/ask` returns 500 on a blank answer. Answers now take 8–22 seconds. |

@@ -42,7 +42,7 @@ Reference documents outside this folder:
 ## Current state
 
 - Phase 0 (foundation) and Phase 1 (rag-service, backend, frontend) are merged on `feature/chat-rag-app`.
-- Phase 2 (integration: full stack, smoke test, root README) has not started. `scripts/` does not exist yet.
+- Phase 2 (integration) is under way: the full stack runs and `scripts/smoke.sh` passes (2026-10-06). The browser check is still to do.
 - Tests run without Ollama or the network: rag-service 22, backend 48, frontend 19. All pass at `7714c62`.
 - Known gaps are listed in [run-book.md](run-book.md#known-gaps). The most important one: rag-service does not answer HTTP while its index is building, so `/health` cannot show `"loading"` at startup.
 

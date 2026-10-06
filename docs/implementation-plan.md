@@ -14,7 +14,7 @@
 | 1A | rag-service: `prompts.py`, `pdf_rag.py` refactor, FastAPI `app.py` | `rag-service-dev` | ✅ Done (`d065033`, merged `58c163e`) |
 | 1B | backend: Spring Boot REST API + H2 transcript log | `backend-dev` | ✅ Done (`1131c7d`, `2413a12`, merged `25c7cab`) |
 | 1C | frontend: React chat page | `frontend-dev` | ✅ Done (`3a6e764`, `121f813`, merged `7714c62`) |
-| 2 | Integration: merge, all suites, full stack, smoke test, root docs | `integration-tester` | ⏳ Not started |
+| 2 | Integration: merge, all suites, full stack, smoke test, root docs | main session | 🟡 Smoke test and 503 check passed 2026-10-06; browser check pending |
 
 Phases 1A–1C ran in parallel and are merged into `feature/chat-rag-app`. On the merged tree the unit suites pass: rag-service 22, backend 48, frontend 19. Contract A changed during Phase 1 (`06a65c5`, `ce192d9`): 503, 504 and 500 now carry `conversationId`, and 405 and 415 are listed.
 
@@ -85,7 +85,7 @@ LLMUsingApi/
 ├── rag-service/              # Python: pdf_rag.py, prompts.py, app.py, tests/, data/HOA.pdf
 ├── backend/                  # Spring Boot (Maven, Java 21)
 ├── frontend/                 # React + Vite
-└── scripts/smoke.sh          # Phase 2
+└── scripts/smoke.sh          # Phase 2 (done)
 ```
 
 `starter-1.py` and `start-2.py` stay at the root. They are standalone Ollama demos and are not part of the app.
@@ -210,6 +210,14 @@ Done in commit `b8b0294`:
 
 The integration tester doesn't edit module code. It reports defects to the module's owner.
 
+**Results (2026-10-06, run from the main session):**
+- Unit suites on the merged tree: rag-service 23, backend 48, frontend 19, all passing.
+- Stack start: rag-service `ok` (133 chunks) in about 11 seconds, backend `UP` in about 5 seconds, frontend serving; the Vite proxy forwards `/api` to the backend.
+- `scripts/smoke.sh` passed twice. It also fails with a non-zero exit when rag-service or the backend is unreachable.
+- Manual 503 check passed: with rag-service stopped, `POST /api/chat` returned 503 with `conversationId`, and the user message was in the transcript. After a restart, a retry in the same conversation returned 200 with the same id.
+- **Empty answers and latency (fixed the same day):** in the browser check, a question came back as an empty assistant bubble. The backend had returned 200 with `"answer": ""`. Cause: `gemma4` thinks by default, and sometimes it used up its token budget on reasoning (`done_reason=length`), so the answer text was empty. The same hidden reasoning made answers take 40–84 seconds (470–807 tokens for a ~40-token answer). Fix: `ChatOllama(reasoning=False)` through `RAGConfig.reasoning`, and `/ask` returns 500 on a blank answer instead of 200. After the fix, answers took 8–22 seconds and none came back empty.
+- Not done: a browser recheck after the fix (step 6 of the definition of done) and the optional Playwright test.
+
 ---
 
 ## 11. Test plan
@@ -244,7 +252,7 @@ Four subagents are defined in `.claude/agents/`:
 - Finish with a structured report.
 
 **Dependencies and access**
-- Claude Code and git.
+- Claude Code and git./
 - Phase 0 committed (worktrees branch from HEAD).
 - Network access to package registries.
 - `.claude/settings.json` allowlist: npm, npx, `./mvnw`, the venv's python/uvicorn, local curl, local git. **Denied:** `git push` and `pip install` into the shared venv.
